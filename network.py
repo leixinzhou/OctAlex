@@ -48,27 +48,30 @@ class AlexNet(nn.Module):
     def __init__(self, in_channels, ftr_nb, fc_nb):
         super(AlexNet, self).__init__()
         self.fc_nb = fc_nb
-        self.down_convs = []
-        self.fcs = []
-        for i in range(len(down_convs)):
+        self.down_convs = torch.nn.ModuleList()
+        self.fcs = torch.nn.ModuleList()
+        for i in range(len(ftr_nb)):
             if i == 0:
                 ins = in_channels
             else:
                 ins = ftr_nb[i-1]
             outs = ftr_nb[i]
             self.down_convs.append(DsBlock(ins, outs))
-        for i in range(len(fc_nb)):
+        for i in range(len(fc_nb)-1):
             ins = fc_nb[i]
             outs = fc_nb[i+1]
             self.fcs.append(nn.Linear(ins, outs))
     def forward(self, x):
         for i, module in enumerate(self.down_convs):
             x = module(x)
+        x = x.view(x.size(0), self.fc_nb[0])
         for i, module in enumerate(self.fcs):
             x = module(x)
         return x
 
-if __doc__ == "__main__":
-    model = AlexNet(1, [16, 32, 64, 64, 32, 32, 16], [12*16, 2500, 400]).cuda()
+if __name__ == "__main__":
+    model = AlexNet(1, [16, 32, 64, 64, 32, 32, 16], [12*16, 2500, 400])
+    model.cuda()
+    # print(model)
     x = torch.FloatTensor(np.random.random((2, 1, 400, 512))).cuda()
     y = model(x)
