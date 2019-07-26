@@ -22,8 +22,8 @@ class OCTDataset(Dataset):
                 on a sample.
         """
         self.sf = surf
-        self.image = np.load(img_np, mmap_mode='r')
-        self.label = np.load(label_np, mmap_mode='r')
+        self.image = np.load(img_np)
+        self.label = np.load(label_np)
         self.vol_list = vol_list
         self.trans = transforms
 
@@ -34,27 +34,40 @@ class OCTDataset(Dataset):
             return len(self.vol_list)*SLICE_per_vol
 
     def __getitem__(self, idx):
-        real_idx = self.vol_list[int(idx/SLICE_per_vol)]*SLICE_per_vol + idx % SLICE_per_vol
-        image = self.image[real_idx, ]
-        image_ts = torch.from_numpy(image.astype(np.float32)).unsqueeze(0)
-
-        label = self.label[real_idx,:, self.sf]
-        label_ts = torch.from_numpy(label.astype(np.float32).reshape(-1))
+        if self.vol_list is None:
+            real_idx = idx
+        else:
+            real_idx = self.vol_list[int(idx/SLICE_per_vol)]*SLICE_per_vol + idx % SLICE_per_vol
+        image = np.swapaxes(self.image[real_idx, ], 0, 1)
+        label = np.swapaxes(self.label[real_idx,:, self.sf], 0, 1)
+        # print(self.label.shape, label.shape)
+        img_gt = {"img": image.astype(np.float64), "gt": label}
+        if self.trans is not None:
+            img_gt = self.trans(img_gt)
+        image_gt_ts = {"img": torch.from_numpy(img_gt["img"].astype(np.float32)).unsqueeze(0),
+                        "gt": torch.from_numpy(img_gt["gt"].astype(np.float32).reshape(-1, order='F'))}
         
-        sample = {"img": image_ts, "gt": label_ts}
-        
-        return sample
+        return image_gt_ts
        
 if __name__ == "__main__":
     """
     test the class
     """
+    aug_dict = {"saltpepper": SaltPepperNoise(sp_ratio=0.05), 
+                "Gaussian": AddNoiseGaussian(loc=0, scale=0.1),
+                "cropresize": RandomCropResize(crop_ratio=0.9), 
+                "circulateud": CirculateUD(),
+                "mirrorlr":MirrorLR()}
+    rand_aug = RandomApplyTrans(trans_seq=[aug_dict[key] for key, _ in aug_dict.items()],
+                                trans_seq_post=[NormalizeSTD()],
+                                trans_seq_pre=[NormalizeSTD()])
+
     vol_list = [10,3]
     vol_index = 1
     slice_index = 10
     patch_dir = "/home/leizhou/Documents/OCT/60slice/split_data_2D_400/test/patch.npy"
     truth_dir = "/home/leizhou/Documents/OCT/60slice/split_data_2D_400/test/truth.npy"
-    dataset = OCTDataset(img_np=patch_dir, label_np=truth_dir, surf=[0,1,2], vol_list=vol_list)
+    dataset = OCTDataset(img_np=patch_dir, label_np=truth_dir, surf=[0,1,2], vol_list=vol_list, transforms=rand_aug)
     loader = DataLoader(dataset, shuffle=False, batch_size=1)
     test_patch = np.load(patch_dir, mmap_mode='r')
     test_truth = np.load(truth_dir, mmap_mode='r')
@@ -68,7 +81,7 @@ if __name__ == "__main__":
             img = batch['img'].squeeze().numpy()
             gt = batch['gt'].squeeze().numpy()
             break
-    axes[1].imshow(np.transpose(img), cmap='gray')
+    axes[1].imshow(img, cmap='gray')
     axes[1].plot(gt[:400])
     axes[1].plot(gt[400:800])
     axes[1].plot(gt[800:1200])

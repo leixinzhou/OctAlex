@@ -10,8 +10,14 @@ from torch import optim
 from torch import nn
 import shutil
 import os
+import sys
+sys.path.append('../')
+from AugSurfSeg import *
 import matplotlib.pyplot as plt
 # os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"   # see issue #152
+
+# HYPER
+TR_CASE_NB = 266
 
 
 def save_checkpoint(states,  path, filename='model_best.pth.tar'):
@@ -59,16 +65,32 @@ def learn(model, hps):
         # model = nn.DataParallel(model, device_ids=hps['gpu'], output_device=hps['gpu'][0])
     else:
         raise NotImplementedError("CPU version is not implemented!")
+    # define the training data sampling
+    np.random.seed(0)
+    vol_list = np.random.choice(TR_CASE_NB, int(TR_CASE_NB*hps['learning']['data']['tr_ratio']), replace=False)
+    print(vol_list)
+    aug_dict = {"saltpepper": SaltPepperNoise(sp_ratio=0.05), 
+                "Gaussian": AddNoiseGaussian(loc=0, scale=0.1),
+                "cropresize": RandomCropResize(crop_ratio=0.9), 
+                "circulateud": CirculateUD(),
+                "mirrorlr":MirrorLR(), 
+                "circulatelr": CirculateLR()}
+    rand_aug = RandomApplyTrans(trans_seq=[aug_dict[i] for i in hps['learning']['augmentation']],
+                                trans_seq_post=[NormalizeSTD()],
+                                trans_seq_pre=[NormalizeSTD()])
+    val_aug = RandomApplyTrans(trans_seq=[],
+                                trans_seq_post=[NormalizeSTD()],
+                                trans_seq_pre=[NormalizeSTD()])
 
     tr_dataset = OCTDataset(surf=hps['surf'], img_np=hps['learning']['data']['tr_img'],
                             label_np=hps['learning']['data']['tr_gt'],
-                            g_label_np=None
+                            vol_list=vol_list
                             )
+    print(tr_dataset.__len__())
     tr_loader = DataLoader(tr_dataset, shuffle=True,
                            batch_size=hps['learning']['batch_size'], num_workers=0)
     val_dataset = OCTDataset(surf=hps['surf'], img_np=hps['learning']['data']['val_img'],
                             label_np=hps['learning']['data']['val_gt'],
-                            g_label_np=None
                             )
     val_loader = DataLoader(val_dataset, shuffle=False,
                             batch_size=hps['learning']['batch_size'], num_workers=0)
