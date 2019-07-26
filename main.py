@@ -16,8 +16,10 @@ from AugSurfSeg import *
 import matplotlib.pyplot as plt
 # os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"   # see issue #152
 
-# HYPER
-TR_CASE_NB = 266
+# Sample training data. The npy starts with AMD and then Control.
+TR_AMD_NB = 187
+TR_Control_NB = 79
+TR_CASE_NB = TR_AMD_NB + TR_Control_NB
 
 
 def save_checkpoint(states,  path, filename='model_best.pth.tar'):
@@ -67,7 +69,11 @@ def learn(model, hps):
         raise NotImplementedError("CPU version is not implemented!")
     # define the training data sampling
     np.random.seed(0)
-    vol_list = np.random.choice(TR_CASE_NB, int(TR_CASE_NB*hps['learning']['data']['tr_ratio']), replace=False)
+    AMD_vol_list = np.random.choice(range(TR_AMD_NB), 
+                            int(TR_AMD_NB*hps['learning']['data']['tr_ratio']), replace=False)
+    Control_vol_list = np.random.choice(range(TR_AMD_NB, TR_CASE_NB), 
+                            int(TR_Control_NB*hps['learning']['data']['tr_ratio']), replace=False)
+    vol_list = np.concatenate((AMD_vol_list, Control_vol_list))
     print(vol_list)
     aug_dict = {"saltpepper": SaltPepperNoise(sp_ratio=0.05), 
                 "Gaussian": AddNoiseGaussian(loc=0, scale=0.1),

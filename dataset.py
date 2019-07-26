@@ -53,10 +53,11 @@ if __name__ == "__main__":
     """
     test the class
     """
-    aug_dict = {"saltpepper": SaltPepperNoise(sp_ratio=0.05), 
-                "Gaussian": AddNoiseGaussian(loc=0, scale=0.1),
-                "cropresize": RandomCropResize(crop_ratio=0.9), 
-                "circulateud": CirculateUD(),
+    aug_dict = {
+                # "saltpepper": SaltPepperNoise(sp_ratio=0.05), 
+                # "Gaussian": AddNoiseGaussian(loc=0, scale=0.1),
+                # "cropresize": RandomCropResize(crop_ratio=0.9), 
+                # "circulateud": CirculateUD(),
                 "mirrorlr":MirrorLR()}
     rand_aug = RandomApplyTrans(trans_seq=[aug_dict[key] for key, _ in aug_dict.items()],
                                 trans_seq_post=[NormalizeSTD()],
