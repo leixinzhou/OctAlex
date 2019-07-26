@@ -14,7 +14,7 @@ class OCTDatasetG(OCTDataset):
 
     
     def __init__(self, img_np, label_np, surf, vol_list=None, transforms=None, sigma=50, col_len=512):
-        OCTDataset.__init__(self, img_np, label_np, surf, vol_list=None, transforms=None)
+        OCTDataset.__init__(self, img_np, label_np, surf, vol_list=vol_list, transforms=transforms)
         self.LT = OCTDatasetG.LT_gen(col_len, sigma)
 
     def __getitem__(self, idx):
@@ -63,10 +63,10 @@ if __name__ == "__main__":
     test the class
     """
     aug_dict = {
-                # "saltpepper": SaltPepperNoise(sp_ratio=0.05), 
-                # "Gaussian": AddNoiseGaussian(loc=0, scale=0.1),
-                # "cropresize": RandomCropResize(crop_ratio=0.9), 
-                # "circulateud": CirculateUD(),
+                "saltpepper": SaltPepperNoise(sp_ratio=0.05), 
+                "Gaussian": AddNoiseGaussian(loc=0, scale=0.1),
+                "cropresize": RandomCropResize(crop_ratio=0.9), 
+                "circulateud": CirculateUD(),
                 "mirrorlr":MirrorLR()}
     rand_aug = RandomApplyTrans(trans_seq=[aug_dict[key] for key, _ in aug_dict.items()],
                                 trans_seq_post=[NormalizeSTD()],
@@ -74,7 +74,7 @@ if __name__ == "__main__":
 
     vol_list = [10,3]
     vol_index = 1
-    slice_index = 10
+    slice_index = 1
     patch_dir = "/home/leizhou/Documents/OCT/60slice/split_data_2D_400/test/patch.npy"
     truth_dir = "/home/leizhou/Documents/OCT/60slice/split_data_2D_400/test/truth.npy"
     dataset = OCTDatasetG(img_np=patch_dir, label_np=truth_dir, surf=[0,1,2], vol_list=vol_list, transforms=rand_aug)
