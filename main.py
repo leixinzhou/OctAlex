@@ -20,6 +20,9 @@ import matplotlib.pyplot as plt
 TR_AMD_NB = 187
 TR_Control_NB = 79
 TR_CASE_NB = TR_AMD_NB + TR_Control_NB
+TEST_AMD_NB = 41
+TEST_Control_NB = 18
+SLICE_per_vol = 60
 
 
 def save_checkpoint(states,  path, filename='model_best.pth.tar'):
@@ -90,13 +93,14 @@ def learn(model, hps):
 
     tr_dataset = OCTDataset(surf=hps['surf'], img_np=hps['learning']['data']['tr_img'],
                             label_np=hps['learning']['data']['tr_gt'],
-                            vol_list=vol_list
+                            vol_list=vol_list, transforms=rand_aug 
                             )
     print(tr_dataset.__len__())
     tr_loader = DataLoader(tr_dataset, shuffle=True,
                            batch_size=hps['learning']['batch_size'], num_workers=0)
     val_dataset = OCTDataset(surf=hps['surf'], img_np=hps['learning']['data']['val_img'],
                             label_np=hps['learning']['data']['val_gt'],
+                            transforms=val_aug
                             )
     val_loader = DataLoader(val_dataset, shuffle=False,
                             batch_size=hps['learning']['batch_size'], num_workers=0)
@@ -196,8 +200,12 @@ def infer(model, hps):
         raise NotImplementedError("CPU version is not implemented!")
         # print("run in cpu.")
         # model = nn.DataParallel(model)
+    test_aug = RandomApplyTrans(trans_seq=[],
+                            trans_seq_post=[NormalizeSTD()],
+                            trans_seq_pre=[NormalizeSTD()])
     test_dataset = OCTDataset(surf=hps['surf'], img_np=hps['test']['data']['img'],
-                            label_np=hps['test']['data']['gt']
+                            label_np=hps['test']['data']['gt'],
+                            transforms=test_aug
                             )
     test_loader = DataLoader(test_dataset, shuffle=False,
                             batch_size=hps['test']['batch_size'], num_workers=0)
@@ -212,41 +220,54 @@ def infer(model, hps):
     else:
         print("=> no checkpoint found at '{}'".format(hps['test']['resume_path']))
     model.eval()
-    pred_l1 = []
+    pred_list = []
+    gt_list = []
+    # pred_dummy = []
     for step, batch in enumerate(test_loader):
-        pred = np.zeros(400, dtype=np.float32)
+    #     pred = np.zeros(399, dtype=np.float32)
+    #     batch_gt_d = batch['gt_d'].squeeze().detach().cpu().numpy()
+    #     batch_gt_d_nsm = batch['gt_d_nsm'].squeeze().detach().cpu().numpy()
         batch_gt = batch['gt'].squeeze().detach().cpu().numpy()
-        # print(batch_gt_d)
-        # print(batch_gt)
-        # break
+    #     # print(batch_gt_d)
+    #     # print(batch_gt)
+    #     # break
         batch_img = batch['img'].float().cuda()
         pred_tmp = model(batch_img)
         pred = pred_tmp.squeeze().detach().cpu().numpy()
-
-        fig, axes = plt.subplots(1,2)
-        axes[0].imshow(batch_img.squeeze().detach().cpu().numpy().transpose(), cmap="gray", aspect='auto')
-        axes[0].plot(batch_gt, 'r', label='gt')
-        axes[0].legend()
-        axes[1].plot(pred, 'r', label='pred')
-        axes[1].legend()
-        # pred = cartpolar.gt2cart(pred)
-        if not os.path.isdir(hps['test']['pred_dir']):
-            os.mkdir(hps['test']['pred_dir'])
-        pred_dir = os.path.join(hps['test']['pred_dir'],"_%d.png" % step)
-        fig.savefig(pred_dir)
-        plt.close()
-        pred_l1.append(np.mean(np.abs(batch_gt - pred)))
-        # pred = np.transpose(np.stack(pred, axis=0))
-       
-        # np.savetxt(pred_dir, pred, delimiter=',')
-    print("Test done!")
-    pred_l1_mean = np.mean(np.array(pred_l1))
-    pred_l1_std = np.std(np.array(pred_l1))
-
-    print("test L1: ", "%.5e" % pred_l1_mean)
-    print("test L1 std: ", "%.5e" % pred_l1_std)
-    
-    np.savetxt(os.path.join(hps['test']['pred_dir'], "results.txt"), [pred_l1_mean, pred_l1_std])
+        pred_list.append(pred)
+        gt_list.append(batch_gt)
+    #     fig, axes = plt.subplots(4,1)
+    #     axes[0].imshow(batch_img.squeeze().detach().cpu().numpy().transpose(), cmap="gray", aspect='auto')
+    #     axes[0].plot(batch_gt, 'r', label='gt')
+    #     axes[0].legend()
+    #     axes[1].plot(pred, 'r', label='diff pred')
+    #     axes[1].legend()
+    #     axes[2].plot(batch_gt_d_nsm, 'b', label='diff gt')
+    #     axes[2].legend()
+    #     axes[3].plot(batch_gt_d, 'b', label='diff gt smooth')
+    #     axes[3].legend()
+    #     # pred = cartpolar.gt2cart(pred)
+        
+    #     fig.savefig(pred_dir)
+    #     plt.close()
+        # pred_l1.append(np.mean(np.abs(batch_gt-pred)))
+    #     pred_dummy.append(np.mean(np.abs(batch_gt_d)))
+    pred = np.concatenate(pred_list)
+    gt = np.concatenate(gt_list)
+    if not os.path.isdir(hps['test']['pred_dir']):
+        os.mkdir(hps['test']['pred_dir'])
+    pred_dir = os.path.join(hps['test']['pred_dir'],"pred.npy")
+    pred_stat_dir = os.path.join(hps['test']['pred_dir'],"pred_stat.txt")
+    np.save(pred_dir, pred)
+    error = np.abs(pred - gt)
+    error_mean = [np.mean(error[i*SLICE_per_vol:(i+1):SLICE_per_vol,]) for i in range(TEST_AMD_NB+TEST_Control_NB)]
+    amd_mean = np.mean(error[:TEST_AMD_NB,])
+    amd_std = np.std(error[:TEST_AMD_NB, ])
+    control_mean = np.mean(error[TEST_AMD_NB:,])
+    control_std = np.std(error[TEST_AMD_NB:, ])
+    print("AMD", amd_mean, amd_std)
+    print("Control", control_mean, control_std)
+    np.savetxt(pred_stat_dir, [amd_mean, amd_std, control_mean, control_std])
 
     print("Test done!")
     time_elapsed = time.time() - since
