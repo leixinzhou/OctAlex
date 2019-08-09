@@ -108,11 +108,11 @@ def learn(model, hps):
     optimizer = getattr(optim, hps['learning']['optimizer'])(
         [{'params': model.parameters(), 'lr': hps['learning']['lr']}
          ])
-    # scheduler = getattr(optim.lr_scheduler,
-    #                     hps.learning.scheduler)(optimizer, factor=hps.learning.scheduler_params.factor,
-    #                                             patience=hps.learning.scheduler_params.patience,
-    #                                             threshold=hps.learning.scheduler_params.threshold,
-    #                                             threshold_mode=hps.learning.scheduler_params.threshold_mode)
+    scheduler = getattr(optim.lr_scheduler,
+                        hps['learning']['scheduler'])(optimizer, factor=hps['learning']['scheduler_params']['factor'],
+                                                patience=hps['learning']['scheduler_params']['patience'],
+                                                threshold=hps['learning']['scheduler_params']['threshold'],
+                                                threshold_mode=hps['learning']['scheduler_params']['threshold_mode'])
     try:
         loss_func = getattr(nn, hps['learning']['loss'])()
     except AttributeError:
@@ -123,6 +123,7 @@ def learn(model, hps):
         print('loading checkpoint: {}'.format(hps['learning']['resume_path']))
         checkpoint = torch.load(hps['learning']['resume_path'])
         model.load_state_dict(checkpoint['state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer'])
         print("=> loaded checkpoint (epoch {})"
               .format(checkpoint['epoch']))
     else:
@@ -167,7 +168,8 @@ def learn(model, hps):
         writer.add_scalar('data/val_loss ', epoch_val_loss , epoch)
         # print("     val_loss_g: " + "%.5e" % epoch_val_loss_g)
         print("     val_loss : " + "%.5e" % epoch_val_loss )
-
+        scheduler.step(epoch_val_loss)
+        writer.add_scalar('data/lr', optimizer.param_groups[0]['lr'] , epoch)
         if epoch_val_loss < best_loss:
             best_loss = epoch_val_loss
             save_checkpoint(
