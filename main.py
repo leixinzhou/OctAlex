@@ -112,7 +112,8 @@ def learn(model, hps):
                         hps['learning']['scheduler'])(optimizer, factor=hps['learning']['scheduler_params']['factor'],
                                                 patience=hps['learning']['scheduler_params']['patience'],
                                                 threshold=hps['learning']['scheduler_params']['threshold'],
-                                                threshold_mode=hps['learning']['scheduler_params']['threshold_mode'])
+                                                threshold_mode=hps['learning']['scheduler_params']['threshold_mode'],
+                                                min_lr=hps['learning']['scheduler_params']['min_lr'])
     try:
         loss_func = getattr(nn, hps['learning']['loss'])()
     except AttributeError:
