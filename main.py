@@ -151,9 +151,10 @@ def learn(model, hps):
         
         # print("     tr_loss_g: " + "%.5e" % epoch_tr_loss_g)
         print("     tr_loss : " + "%.5e" % epoch_tr_loss )
-        # scheduler.step(epoch_tr_loss)
+        scheduler.step(epoch_tr_loss)
 
-        # val_loss_g = 0
+
+    #     # val_loss_g = 0
         val_loss = 0
         val_mb = 0
         for step, batch in enumerate(val_loader):
@@ -169,7 +170,7 @@ def learn(model, hps):
         writer.add_scalar('data/val_loss ', epoch_val_loss , epoch)
         # print("     val_loss_g: " + "%.5e" % epoch_val_loss_g)
         print("     val_loss : " + "%.5e" % epoch_val_loss )
-        scheduler.step(epoch_val_loss)
+        #scheduler.step(epoch_val_loss)
         writer.add_scalar('data/lr', optimizer.param_groups[0]['lr'] , epoch)
         if epoch_val_loss < best_loss:
             best_loss = epoch_val_loss
@@ -292,7 +293,13 @@ def main():
             hps = yaml.load(config_file)
     except IOError:
         print('Couldn\'t read hyperparameter setting file')
-    net = AlexNet(1, [16, 32, 64, 64, 32, 32, 16], [12*16, 2500, 400*len(hps['surf'])])
+    if hps['mp_ceil']:
+        net = AlexNet(1, [16, 32, 64, 64, 32, 32, 16], [16*16, 2500, 400*len(hps['surf'])],
+                  ceil_mode=hps['mp_ceil'])
+    else:
+        net = AlexNet(1, [16, 32, 64, 64, 32, 32, 16], [12 * 16, 2500, 400 * len(hps['surf'])],
+                      ceil_mode=hps['mp_ceil'])
+    print(net)
     if hps['test']['mode']:
         infer(net, hps)
     else:

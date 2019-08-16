@@ -30,11 +30,11 @@ def conv1x1(in_channels, out_channels):
 
 class DsBlock(nn.Module):
 
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, ceil_mode=False):
         super(DsBlock, self).__init__()
         self.conv = conv3x3(in_channels, out_channels)
         self.relu = nn.ReLU(inplace=True)
-        self.mp = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
+        self.mp = nn.MaxPool2d(kernel_size=2, stride=2, padding=0, ceil_mode=ceil_mode)
 
     def forward(self, x):
 
@@ -45,7 +45,7 @@ class DsBlock(nn.Module):
         return out
 
 class AlexNet(nn.Module):
-    def __init__(self, in_channels, ftr_nb, fc_nb):
+    def __init__(self, in_channels, ftr_nb, fc_nb, ceil_mode=False):
         super(AlexNet, self).__init__()
         self.fc_nb = fc_nb
         self.down_convs = torch.nn.ModuleList()
@@ -56,7 +56,7 @@ class AlexNet(nn.Module):
             else:
                 ins = ftr_nb[i-1]
             outs = ftr_nb[i]
-            self.down_convs.append(DsBlock(ins, outs))
+            self.down_convs.append(DsBlock(ins, outs, ceil_mode=ceil_mode))
         for i in range(len(fc_nb)-1):
             ins = fc_nb[i]
             outs = fc_nb[i+1]
